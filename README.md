@@ -1,7 +1,6 @@
-# wordsurf
+### wordsurf
 
-wordsurf is a GTK speed-reading application written in Haskell.
+wordsurf is a speed-reading training application written in Haskell, using
+GTK for its GUI.
 
-This is presently an early prototype. It was written as a minimally viable
-example of its functionality. The interface will remain simple, but much of the
-internal implementation will be improved in the future.
+This is presently an early prototype with minimal functionality. 
