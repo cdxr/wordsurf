@@ -31,7 +31,7 @@ readWords :: FilePath -> IO [String]
 readWords = fmap stringWords . L.readFile
     where stringWords = map L.unpack . L.words
 
--- | Set the contents of a Gtk Label to the current word of a 'Word.Proc'
+-- | Set the contents of a Gtk Label to the current output of a 'Word.Proc'
 labelCurrentWord :: (Gtk.LabelClass lbl) => lbl -> WordProc -> IO ()
 labelCurrentWord lbl = setLabel <=< Word.output
   where
