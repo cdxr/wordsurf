@@ -7,7 +7,11 @@ import Control.Monad.Reader
 import qualified Data.Text.Lazy as L
 import qualified Data.Text.Lazy.IO as L
 
-import qualified Graphics.UI.Gtk as Gtk
+import qualified Graphics.UI.Threepenny as UI
+import Graphics.UI.Threepenny.Core
+
+import Control.Concurrent ( threadDelay )
+import Control.Concurrent.Async
 
 import Word
 
@@ -23,7 +27,7 @@ main = run =<< getArgs
 
 
 runFile :: FilePath -> IO ()
-runFile = runGtk
+runFile = runApp
       <=< startWordProc
       <=< readWords
 
@@ -31,47 +35,47 @@ readWords :: FilePath -> IO [String]
 readWords = fmap stringWords . L.readFile
     where stringWords = map L.unpack . L.words
 
--- | Set the contents of a Gtk Label to the current output of a 'Word.Proc'
-labelCurrentWord :: (Gtk.LabelClass lbl) => lbl -> WordProc -> IO ()
-labelCurrentWord lbl = setLabel <=< Word.output
+
+runApp :: WordProc -> IO ()
+runApp = startGUI defaultConfig { tpPort = 10000 } . setup
+
+
+setup :: WordProc -> Window -> UI ()
+setup wordProc w = do
+    set title "WordSurf" $ return w
+    
+    wordDisplay <- UI.span
+    toggle <- set UI.text "start" UI.button
+
+    getBody w #+
+        [ column
+            [ element wordDisplay
+            , element toggle
+            ]
+        ]
+
+    wordReader <- liftIO $ async $ forever $ do
+        word <- readWord wordProc
+        void $ atomic w $ runUI w $ set text word $ return wordDisplay
+        threadDelay 30000
+
+    body <- getBody w
+    on UI.keydown body $ \key -> liftIO $ keyPress key wordProc
+
+    on UI.click toggle $ \_ -> liftIO $
+        prints "running: " =<< control (Running not) wordProc
+
+    on UI.disconnect w $ \_ -> liftIO $ cancel wordReader
   where
-    setLabel :: String -> IO ()
-    setLabel = Gtk.labelSetMarkup lbl . Gtk.markSpan attrs
-    attrs = [Gtk.FontSize (Gtk.SizePoint 24)]
+    prints s a = putStr s >> print a
 
 
-runGtk :: WordProc -> IO ()
-runGtk wordProc = do
-    Gtk.initGUI
-
-    w <- Gtk.windowNew
-    let close = False <$ liftIO Gtk.mainQuit
-    w `Gtk.on` Gtk.deleteEvent  $ close
-    w `Gtk.on` Gtk.destroyEvent $ close
-
-    lbl <- Gtk.labelNew Nothing
-    Gtk.containerAdd w lbl
-
-    let updateWord = labelCurrentWord lbl wordProc
-
-    Gtk.timeoutAdd (True <$ updateWord) 30
-
-    Gtk.on w Gtk.keyPressEvent $ Gtk.tryEvent $ do
-        k <- Gtk.eventKeyName
-        liftIO (keyPress k wordProc)
-
-    Gtk.widgetShowAll w
-
-    Gtk.mainGUI
-
-
-keyPress :: String -> WordProc -> IO ()
-keyPress keyName =
-    case keyName of
-        "space"  -> prints "running: " <=< control (Running not)
-        "k"      -> prints "wpm: "     <=< control (Rate (+5))
-        "j"      -> prints "wpm: "     <=< control (Rate $ subtract 5)
-        "Escape" -> \_ -> Gtk.mainQuit
+keyPress :: UI.KeyCode -> WordProc -> IO ()
+keyPress keyCode =
+    case toEnum keyCode of
+        ' ' -> prints "running: " <=< control (Running not)
+        'K' -> prints "wpm: "     <=< control (Rate (+5))
+        'J' -> prints "wpm: "     <=< control (Rate $ subtract 5)
         _        -> \_ -> return ()
   where
     prints s a = putStr s >> print a
@@ -83,5 +87,4 @@ printInstructions = mapM_ putStrLn
     , "  spacebar       start/pause"
     , "  k              increase speed"
     , "  j              decrease speed"
-    , "  escape         quit wordsurf"
     ]

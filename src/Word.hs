@@ -6,7 +6,7 @@
 module Word
 ( WordProc
 , startWordProc
-, output
+, readWord
 , control
 , Control (..)
 ) where
@@ -92,8 +92,8 @@ control c (WordProc a s _) = do
     modifyMVar s $ return . swap . runState (runControl c)
     
 
-output :: WordProc -> IO String
-output (WordProc a _ o) = do
+readWord :: WordProc -> IO String
+readWord (WordProc a _ o) = do
     assertRunning a
     readIORef o
 
